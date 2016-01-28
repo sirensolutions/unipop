@@ -60,10 +60,10 @@ public class TemporaryTests extends AbstractGremlinTest {
     }
 
     @Test
-    @LoadGraphWith(MODERN)
+    @LoadGraphWith(GRATEFUL)
     public void test() {
         GraphTraversal t = g.V().both().both().count();
-        //1406914
+
         check(t);
     }
 

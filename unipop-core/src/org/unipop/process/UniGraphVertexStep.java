@@ -14,6 +14,8 @@ import org.unipop.structure.BaseEdge;
 import org.unipop.structure.BaseVertex;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class UniGraphVertexStep<E extends Element> extends AbstractStep<Vertex, E> {
     private final Predicates predicates;
@@ -24,6 +26,7 @@ public class UniGraphVertexStep<E extends Element> extends AbstractStep<Vertex, 
     private final int bulk;
     private MutableMetrics metrics;
     private Iterator<Traverser<E>> results = EmptyIterator.instance();
+    private final int threads;
 
     public UniGraphVertexStep(VertexStep vertexStep, Predicates predicates, ControllerManager controllerManager) {
         super(vertexStep.getTraversal());
@@ -41,6 +44,7 @@ public class UniGraphVertexStep<E extends Element> extends AbstractStep<Vertex, 
         if(metrics.isPresent()) this.metrics = (MutableMetrics) metrics.get().getMetrics(this.getId());
 
         this.bulk = getTraversal().getGraph().get().configuration().getInt("bulk", 100);
+        this.threads = getTraversal().getGraph().get().configuration().getInt("threads", 2);
     }
 
     @Override
@@ -54,20 +58,42 @@ public class UniGraphVertexStep<E extends Element> extends AbstractStep<Vertex, 
         throw FastNoSuchElementException.instance();
     }
 
+    private void addToFutures(List<BaseVertex> vertices, List<CompletableFuture<Iterator<BaseEdge>>> futures){
+        final List<BaseVertex> finalVertices = new ArrayList<>(vertices);
+        if (!finalVertices.isEmpty())
+            futures.add(CompletableFuture.supplyAsync(() ->
+                    controllerManager.edges(finalVertices.toArray(new BaseVertex[finalVertices.size()]),
+                            getDirection(),
+                            getEdgeLabels(),
+                            getPredicates())));
+    }
     private Iterator<Traverser<E>> query(Iterator<Traverser.Admin<Vertex>> traversers) {
         ResultsContainer results = new ResultsContainer();
         List<Traverser.Admin<Vertex>> copyTraversers = new ArrayList<>();
         List<BaseVertex> vertices = new ArrayList<>();
+        List<CompletableFuture<Iterator<BaseEdge>>> futures = new ArrayList<>();
+        int size = 0;
 
-        while(traversers.hasNext() && vertices.size() <= bulk)
+        while(traversers.hasNext() && vertices.size() < (bulk / threads + 1) && size < bulk)
         {
             Traverser.Admin<Vertex> traverser = traversers.next();
             vertices.add((BaseVertex) traverser.get());
             copyTraversers.add(traverser);
+            size++;
+            if (vertices.size() >= (bulk / threads + 1)) {
+                addToFutures(vertices, futures);
+                vertices = new ArrayList<>();
+            }
         }
+        addToFutures(vertices, futures);
 
-        results.addResults(controllerManager.edges(vertices.toArray(new BaseVertex[0]), getDirection(), getEdgeLabels(), getPredicates()));
-
+        futures.stream().forEach(future -> {
+            try {
+                results.addResults(future.get());
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException("error in future");
+            }
+        });
         List<Traverser<E>> returnTraversers = new ArrayList<>();
         copyTraversers.forEach(traverser -> {
             ArrayList<E> list = results.get(traverser.get().id().toString());

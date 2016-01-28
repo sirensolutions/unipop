@@ -48,16 +48,16 @@ public class TimingAccessor {
                 sw.start();
                 return;
             }
-            if(!sw.isSuspended()) stop();
-            sw.resume();
+//            if(!sw.isSuspended()) stop();
+//            sw.resume();
         }
 
         public void stop() {
-            sw.suspend();
-            long time = sw.getTime() - lastRun;
-            if (time > longestRun) longestRun = time;
-            lastRun = time;
-            numOfRuns++;
+//            sw.suspend();
+//            long time = sw.getTime() - lastRun;
+//            if (time > longestRun) longestRun = time;
+//            lastRun = time;
+//            numOfRuns++;
         }
 
         public void PrintStats() {
