@@ -64,4 +64,10 @@ public class ElasticVertex<T extends ElasticVertexController> extends BaseVertex
     protected void checkLazy() {
         if (lazyGetter != null) lazyGetter.execute();
     }
+    
+    // Don't remove id and label from properties
+    @Override
+    protected boolean shouldAddProperty(String key) {
+        return true;
+    }
 }
