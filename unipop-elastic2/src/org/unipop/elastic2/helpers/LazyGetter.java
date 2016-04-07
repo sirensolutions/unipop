@@ -1,14 +1,17 @@
-package org.unipop.elastic.helpers;
+package org.unipop.elastic2.helpers;
 
-import org.elasticsearch.action.get.*;
+import org.elasticsearch.action.get.MultiGetRequestBuilder;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.unipop.structure.BaseVertex;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 public class LazyGetter {
 
-    private static final int MAX_LAZY_GET = 1000;
+    private static final int MAX_LAZY_GET = 50;
     private Client client;
     private TimingAccessor timing;
     private boolean executed = false;

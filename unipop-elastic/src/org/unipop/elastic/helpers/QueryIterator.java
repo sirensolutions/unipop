@@ -6,6 +6,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 
@@ -22,7 +23,7 @@ public class QueryIterator<E extends Element> implements Iterator<E> {
     private Client client;
     private Iterator<SearchHit> hits;
 
-    public QueryIterator(FilterBuilder filter, int scrollSize, long maxSize, Client client,
+    public QueryIterator(QueryBuilder query, int scrollSize, long maxSize, Client client,
                          Parser<E> parser, TimingAccessor timing, String... indices) {
         this.scrollSize = scrollSize;
         this.client = client;
@@ -31,13 +32,16 @@ public class QueryIterator<E extends Element> implements Iterator<E> {
         this.timing = timing;
 
         this.timing.start("query");
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch(indices)
-                .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter));
 
-        if(scrollSize > 0)
+        SearchRequestBuilder searchRequestBuilder;
+
+        searchRequestBuilder = client.prepareSearch(indices)
+                .setQuery(query);
+
+        if (scrollSize > 0)
             searchRequestBuilder.setScroll(new TimeValue(60000))
-            .setSize(maxSize < scrollSize ? (int) maxSize : scrollSize);
-        else searchRequestBuilder.setSize(maxSize < Integer.MAX_VALUE ? (int) maxSize : Integer.MAX_VALUE);
+                    .setSize(maxSize < scrollSize ? (int) maxSize : scrollSize);
+        else searchRequestBuilder.setSize(maxSize < 100000 ? (int) maxSize : 100000);
 
         this.scrollResponse = searchRequestBuilder.execute().actionGet();
 
@@ -47,10 +51,10 @@ public class QueryIterator<E extends Element> implements Iterator<E> {
 
     @Override
     public boolean hasNext() {
-        if(allowedRemaining <= 0) return false;
-        if(hits.hasNext()) return true;
+        if (allowedRemaining <= 0) return false;
+        if (hits.hasNext()) return true;
 
-        if(scrollSize > 0) {
+        if (scrollSize > 0) {
             timing.start("scroll");
             scrollResponse = client.prepareSearchScroll(scrollResponse.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
             hits = scrollResponse.getHits().iterator();

@@ -3,7 +3,6 @@ package org.unipop.elastic.controller.vertex;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.Graph;
-import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -11,15 +10,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.query.BoolFilterBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.unipop.controller.Predicates;
 import org.unipop.controller.VertexController;
-import org.unipop.controller.aggregation.SemanticKeyTraversal;
-import org.unipop.controller.aggregation.SemanticReducerTraversal;
 import org.unipop.elastic.controller.edge.ElasticEdge;
 import org.unipop.elastic.controller.schema.helpers.AggregationBuilder;
 import org.unipop.elastic.controller.schema.helpers.SearchAggregationIterable;
-import org.unipop.elastic.controller.schema.helpers.SearchBuilder;
 import org.unipop.elastic.controller.schema.helpers.aggregationConverters.*;
 import org.unipop.elastic.helpers.*;
 import org.unipop.structure.BaseVertex;
@@ -33,10 +30,10 @@ public class ElasticVertexController implements VertexController {
     protected UniGraph graph;
     protected Client client;
     protected ElasticMutations elasticMutations;
-    protected final int scrollSize;
+    protected int scrollSize;
     protected TimingAccessor timing;
     private String defaultIndex;
-    private Map<Direction, LazyGetter> lazyGetters;
+    private Map<Direction, ElasticLazyGetter> lazyGetters;
 
     public ElasticVertexController(UniGraph graph, Client client, ElasticMutations elasticMutations, String defaultIndex,
                                    int scrollSize, TimingAccessor timing) {
@@ -47,6 +44,25 @@ public class ElasticVertexController implements VertexController {
         this.scrollSize = scrollSize;
         this.timing = timing;
         this.lazyGetters = new HashMap<>();
+    }
+
+    public ElasticVertexController(){}
+
+    @Override
+    public void init(Map<String, Object> conf, UniGraph graph) throws Exception {
+        this.lazyGetters = new HashMap<>();
+        this.graph = graph;
+        this.client = ((Client) conf.get("client"));
+        this.elasticMutations = ((ElasticMutations) conf.get("elasticMutations"));
+        this.timing = ((TimingAccessor) conf.get("timing"));
+        this.defaultIndex = conf.getOrDefault("defaultIndex", "unipop_es1").toString();
+        this.scrollSize = Integer.parseInt(conf.getOrDefault("scrollSize", "0").toString());
+
+    }
+
+    @Override
+    public void close() {
+        client.close();
     }
 
     @Override
@@ -63,10 +79,9 @@ public class ElasticVertexController implements VertexController {
     @Override
     public Iterator<BaseVertex> vertices(Predicates predicates) {
         elasticMutations.refresh(defaultIndex);
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
-        boolFilter.must(FilterBuilders.missingFilter(ElasticEdge.InId));
-        return new QueryIterator<>(boolFilter, scrollSize, predicates.limitHigh, client,
-                this::createVertex, timing, getDefaultIndex());
+        QueryBuilder query = ElasticHelper.createQuery(predicates.hasContainers, FilterBuilders.missingFilter(ElasticEdge.InId));
+            return new QueryIterator<>(query, scrollSize, predicates.limitHigh, client,
+                    this::createVertex, timing, getDefaultIndex());
     }
 
     @Override
@@ -85,7 +100,7 @@ public class ElasticVertexController implements VertexController {
                     .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), boolFilter))
                     .setSearchType(SearchType.COUNT).execute().get();
             return response.getHits().getTotalHits();
-        } catch(Exception ex) {
+        } catch (Exception ex) {
             //TODO: decide what to do here
             return 0L;
         }
@@ -103,7 +118,7 @@ public class ElasticVertexController implements VertexController {
         SearchRequestBuilder searchRequest = client.prepareSearch().setIndices(defaultIndex)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), boolFilter))
                 .setSearchType(SearchType.COUNT);
-        for(org.elasticsearch.search.aggregations.AggregationBuilder innerAggregation : aggregationBuilder.getAggregations()) {
+        for (org.elasticsearch.search.aggregations.AggregationBuilder innerAggregation : aggregationBuilder.getAggregations()) {
             searchRequest.addAggregation(innerAggregation);
         }
 
@@ -114,18 +129,18 @@ public class ElasticVertexController implements VertexController {
         return result;
     }
 
-    private LazyGetter getLazyGetter(Direction direction) {
-        LazyGetter lazyGetter = lazyGetters.get(direction);
-        if (lazyGetter == null || !lazyGetter.canRegister()) {
-            lazyGetter = new LazyGetter(client, timing);
+    private ElasticLazyGetter getLazyGetter(Direction direction) {
+        ElasticLazyGetter elasticLazyGetter = lazyGetters.get(direction);
+        if (elasticLazyGetter == null || !elasticLazyGetter.canRegister()) {
+            elasticLazyGetter = new ElasticLazyGetter(client, timing);
             lazyGetters.put(direction,
-                    lazyGetter);
+                    elasticLazyGetter);
         }
-        return lazyGetter;
+        return elasticLazyGetter;
     }
 
-    protected ElasticVertex createLazyVertex(Object id, String label,  LazyGetter lazyGetter) {
-        return new ElasticVertex(id, label, null, this, graph, lazyGetter, elasticMutations, getDefaultIndex());
+    protected ElasticVertex createLazyVertex(Object id, String label, ElasticLazyGetter elasticLazyGetter) {
+        return new ElasticVertex(id, label, null, this, graph, elasticLazyGetter, elasticMutations, getDefaultIndex());
     }
 
     protected ElasticVertex createVertex(Object id, String label, Map<String, Object> keyValues) {

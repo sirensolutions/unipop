@@ -5,8 +5,8 @@ import org.unipop.controller.Predicates;
 import org.unipop.elastic.controller.star.inneredge.InnerEdge;
 import org.unipop.elastic.controller.star.inneredge.InnerEdgeController;
 import org.unipop.elastic.controller.vertex.ElasticVertex;
+import org.unipop.elastic.helpers.ElasticLazyGetter;
 import org.unipop.elastic.helpers.ElasticMutations;
-import org.unipop.elastic.helpers.LazyGetter;
 import org.unipop.structure.BaseEdge;
 import org.unipop.structure.UniGraph;
 
@@ -23,12 +23,12 @@ public class ElasticStarVertex extends ElasticVertex<ElasticStarController> {
                              final String label,
                              Map<String, Object> keyValues,
                              UniGraph graph,
-                             LazyGetter lazyGetter,
+                             ElasticLazyGetter elasticLazyGetter,
                              ElasticStarController controller,
                              ElasticMutations elasticMutations,
                              String indexName,
                              Set<InnerEdgeController> innerEdgeControllers) {
-        super(id, label, keyValues, controller, graph, lazyGetter, elasticMutations, indexName);
+        super(id, label, keyValues, controller, graph, elasticLazyGetter, elasticMutations, indexName);
         this.indexName = indexName;
         this.innerEdgeControllers = innerEdgeControllers;
         innerEdges = new HashSet<>();
@@ -38,7 +38,7 @@ public class ElasticStarVertex extends ElasticVertex<ElasticStarController> {
     public Map<String, Object> allFields() {
         Map<String, Object> map = super.allFields();
         innerEdges.stream().collect(Collectors.groupingBy(InnerEdge::getInnerEdgeController))
-                .forEach((controller, edges) -> controller.addEdgeFields(edges, map));
+                .forEach((controller, edges) -> map.putAll(controller.allFields(edges)));
         return map;
     }
 
@@ -50,10 +50,15 @@ public class ElasticStarVertex extends ElasticVertex<ElasticStarController> {
         innerEdges.remove(edge);
     }
 
-    public void update() {
+    public void update(boolean force) {
+        if(removed) return;
         checkLazy();
         try {
-            elasticMutations.updateElement(this, indexName, null, false);
+            if(force) {
+                elasticMutations.deleteElement(this, indexName, null);
+                elasticMutations.addElement(this, indexName, null, false);
+            }
+            else elasticMutations.updateElement(this, indexName, null, false);
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
         }
@@ -76,7 +81,7 @@ public class ElasticStarVertex extends ElasticVertex<ElasticStarController> {
         return innerEdges.stream()
                 .filter(edge -> filterPredicates(edge, predicates) &&
                         (edgeLabels.size() == 0 || edgeLabels.contains(edge.label())) &&
-                        (direction.equals(Direction.BOTH) || direction.equals(edge.getInnerEdgeController().getDirection())))
+                        (direction.equals(Direction.BOTH) || direction.equals(this.equals(edge.outVertex())? Direction.OUT : Direction.IN)))
                 .collect(Collectors.toSet());
     }
 

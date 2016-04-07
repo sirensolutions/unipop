@@ -7,6 +7,7 @@ import org.elasticsearch.index.query.FilterBuilder;
 import org.unipop.controller.Predicates;
 import org.unipop.elastic.controller.star.ElasticStarVertex;
 import org.unipop.structure.BaseVertex;
+import org.unipop.structure.UniGraph;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +23,11 @@ public interface InnerEdgeController {
 
     FilterBuilder getFilter(Vertex[] vertices, Direction direction, String[] edgeLabels, Predicates predicates);
 
-    void addEdgeFields(List<InnerEdge> edges, Map<String, Object> map);
+    Map<String, Object> allFields(List<InnerEdge> edges);
+
+    String getEdgeLabel();
 
     Direction getDirection();
+
+    void init(Map<String, Object> conf) throws Exception;
 }
