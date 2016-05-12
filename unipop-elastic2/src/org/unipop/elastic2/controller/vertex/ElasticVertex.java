@@ -43,7 +43,7 @@ public class ElasticVertex<T extends ElasticVertexController> extends BaseVertex
             e.printStackTrace();
         }
     }
-    
+
     @Override
     public <V> VertexProperty<V> property(final String key) {
         checkLazy();
@@ -66,11 +66,11 @@ public class ElasticVertex<T extends ElasticVertexController> extends BaseVertex
         return super.properties(propertyKeys);
     }
     
-    @Override
-    public Set<String> keys() {
-    	checkLazy();
-        return this.properties.keySet();
-    }
+	@Override
+	public Set<String> keys() {
+		checkLazy();
+		return this.properties.keySet();
+	}
 
     protected void checkLazy() {
         if (lazyGetter != null) lazyGetter.execute();
