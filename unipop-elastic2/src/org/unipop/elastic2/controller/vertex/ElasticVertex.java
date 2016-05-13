@@ -7,6 +7,7 @@ import org.unipop.structure.*;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public class ElasticVertex<T extends ElasticVertexController> extends BaseVertex<T> {
@@ -64,6 +65,12 @@ public class ElasticVertex<T extends ElasticVertexController> extends BaseVertex
         checkLazy();
         return super.properties(propertyKeys);
     }
+    
+	@Override
+	public Set<String> keys() {
+		checkLazy();
+		return this.properties.keySet();
+	}
 
     protected void checkLazy() {
         if (lazyGetter != null) lazyGetter.execute();
