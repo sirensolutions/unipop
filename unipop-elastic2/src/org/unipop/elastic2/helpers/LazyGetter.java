@@ -12,10 +12,10 @@ import java.util.List;
 public class LazyGetter {
 
     private static final int MAX_LAZY_GET = 50;
-    private Client client;
-    private TimingAccessor timing;
-    private boolean executed = false;
-    private HashMap<GetKey, List<BaseVertex>> keyToVertices = new HashMap();
+    protected Client client;
+    protected TimingAccessor timing;
+    protected boolean executed = false;
+    protected HashMap<GetKey, List<BaseVertex>> keyToVertices = new HashMap();
 
     public LazyGetter(Client client, TimingAccessor timing) {
         this.client = client;
@@ -66,10 +66,10 @@ public class LazyGetter {
         client = null;
     }
 
-    private class GetKey {
-        private final String id;
-        private final String type;
-        private final String indexName;
+    protected class GetKey {
+    	public final String id;
+    	public final String type;
+    	public final String indexName;
 
         public GetKey(Object id, String type, String indexName) {
 
