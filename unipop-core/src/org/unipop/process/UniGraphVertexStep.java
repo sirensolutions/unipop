@@ -87,8 +87,14 @@ public class UniGraphVertexStep<E extends Element> extends AbstractStep<Vertex, 
                     list = new ArrayList();
                     idToResults.put(vertex.id(), list);
                 }
-                Element element = !Vertex.class.equals(returnClass) ? edge : vertexToVertex(vertex, edge, getDirection());
-                list.add((E) element);
+                if (Vertex.class.equals(returnClass)) {
+                    Element element = vertexToVertex(vertex, edge, getDirection());
+                    list.add((E) element);
+                } else {
+                    if (!list.contains(edge)) {
+                        list.add((E) edge);
+                    }
+                }
             }));
         }
 
