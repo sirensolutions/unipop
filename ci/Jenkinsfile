@@ -1,0 +1,57 @@
+#!/usr/bin/env groovy
+import hudson.model.*
+
+pipeline {
+  agent { label 'master' }
+  options {
+    ansiColor('xterm')
+    timestamps()
+    skipDefaultCheckout()
+  }
+  environment {
+    CREDENTIALS_ID='86f3b7e9-aec0-4914-bc4c-24bfa709fab8'
+  }
+  stages {
+    stage("Test") {
+      agent {
+        docker {
+          label '!master'
+          image 'solutions.siren/jenkins-slave:latest'
+        }
+      }
+
+      steps {
+        script {
+          checkout scm
+          githubNotify status: 'PENDING',
+                        context: "${env.STAGE_NAME}",
+                        credentialsId: "${env.CREDENTIALS_ID}",
+                        description: 'Linting started'
+
+          sh 'mvn --batch-mode clean install -DskipTests'
+        }
+      }
+
+      post {
+        success {
+          githubNotify status: 'SUCCESS',
+                        context: "${env.STAGE_NAME}",
+                        credentialsId: "${env.CREDENTIALS_ID}",
+                        description: 'complete'
+        }
+        failure {
+          githubNotify status: 'FAILURE',
+                        context: "${env.STAGE_NAME}",
+                        credentialsId: "${env.CREDENTIALS_ID}",
+                        description: 'failed'
+        }
+        aborted {
+          githubNotify status: 'FAILURE',
+                        context: "${env.STAGE_NAME}",
+                        credentialsId: "${env.CREDENTIALS_ID}",
+                        description: 'aborted'
+        }
+      }
+    }
+  }
+}
